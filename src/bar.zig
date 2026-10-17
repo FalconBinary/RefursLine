@@ -174,8 +174,6 @@ var title_buf: [256]u8 = undefined;
 var title_len: usize = 0;
 var kb_buf: [8]u8 = undefined;
 var kb_len: usize = 0;
-/// цвет фона рабочего стола RefursWM (0xAARRGGBB): поля обоев в режиме .fit
-var wm_bg: u32 = 0xff1e1e2e;
 /// пачка событий refurs-shell ещё не закончилась (done): не рисовать промежуточное состояние
 var shell_pending = false;
 
@@ -703,16 +701,11 @@ fn onShell(op: u16, a: *wl.Args) void {
             markAll(false);
         },
         .theme => {
-            const dark = a.uint() != 0;
-            const active = theme.fromRgba(a.uint());
-            _ = a.uint();
-            const bg = theme.fromRgba(a.uint());
-            const old_bg = wm_bg;
-            theme.set(dark, active);
-            wm_bg = bg | 0xff000000;
+            const old_bg = theme.t.wallpaper;
+            theme.set(a.uint() != 0);
             markAll(true);
-            // поля обоев в режиме .fit — цвета фона RefursWM
-            if (cfg.wallpaper_mode == .fit and wm_bg != old_bg) for (&bars) |*b| {
+            // поля обоев в режиме .fit — цвет wallpaper из темы бара
+            if (cfg.wallpaper_mode == .fit and theme.t.wallpaper != old_bg) for (&bars) |*b| {
                 if (b.used and b.wall.surface != 0) b.wall.dirty = true;
             };
         },
@@ -920,8 +913,7 @@ fn openMenu(m: u32) void {
 /// Меню запускает broker. Обоям и питанию нужен канал к бару: пара сокетов, один конец
 /// становится fd 3 меню, другой бар слушает. Повторное открытие закрывает меню (его замок).
 fn open(m: broker.Menu) void {
-    var tb: [10]u8 = undefined;
-    const targ = theme.encode(&tb);
+    const targ = theme.encode();
     var ch: i32 = -1;
     if (m == .wallpaper or m == .power) {
         const pair = sys.socketpair() catch return broker.open(m, targ, -1);
@@ -1179,14 +1171,13 @@ fn render(i: u8) void {
     if (sys.tracing()) sys.tracef("frame {d}: {d} µs, {s} {d} areas{s}", .{ i, sys.traceSince(t0), if (full) "full" else "partial", nd, if (reuse and !full) ", same buffer" else "" });
 }
 
-/// Непрозрачный фон (альфа ff): компоновщику — область без скруглённых углов, под ней он не рисует.
+/// Панель непрозрачна целиком: компоновщику — непрозрачная область, под ней он не рисует.
 fn syncOpaque(b: *Bar) void {
-    const want = theme.solid(theme.t.background);
-    if (want == b.opaque_on and (!want or (b.opaque_w == b.w and b.opaque_h == b.h))) return;
-    b.opaque_on = want;
+    if (b.opaque_on and b.opaque_w == b.w and b.opaque_h == b.h) return;
+    b.opaque_on = true;
     b.opaque_w = b.w;
     b.opaque_h = b.h;
-    conn.setOpaque(compositor, b.surface, want, b.w, b.h, cfg.radius);
+    conn.setOpaque(compositor, b.surface, b.w, b.h);
 }
 
 // ================================================================= раскладка панели
@@ -1318,11 +1309,10 @@ fn paintBg(b: *const Bar, cv: *draw.Canvas) void {
     const W: f32 = @floatFromInt(b.pw);
     const H: f32 = @floatFromInt(b.ph);
     const c = &theme.t;
-    cv.clear(0);
-    cv.fillRoundRect(0, 0, W, H, cfg.radius * S, c.background);
+    cv.fillRect(0, 0, W, H, c.background);
     if (cfg.border_width > 0) {
         const bw = cfg.border_width * S;
-        const frame = [_]draw.Prim{.{ .box = .{ .x = bw / 2, .y = bw / 2, .w = W - bw, .h = H - bw, .r = @max(cfg.radius * S - bw / 2, 0) } }};
+        const frame = [_]draw.Prim{.{ .box = .{ .x = bw / 2, .y = bw / 2, .w = W - bw, .h = H - bw, .r = 0 } }};
         cv.prims(&frame, 0, 0, 1, bw, c.border);
     }
 }
@@ -1332,7 +1322,7 @@ fn paintSlot(b: *const Bar, cv: *draw.Canvas, s: Slot, S: f32) void {
     const H: f32 = @floatFromInt(b.h);
     const by = (H - cfg.button) / 2;
     if (cfg.hover_effect) if (b.hover) |hv| if (hv.item == s.item and s.item != .workspaces)
-        cv.fillRoundRect(s.x * S, by * S, s.w * S, cfg.button * S, cfg.button_radius * S, c.hover);
+        cv.fillRect(s.x * S, by * S, s.w * S, cfg.button * S, c.hover);
     switch (s.item) {
         .workspaces => paintWorkspaces(b, cv, S, by),
         .clock => {
@@ -1365,19 +1355,19 @@ fn paintWorkspaces(b: *const Bar, cv: *draw.Canvas, S: f32, by: f32) void {
         if (h.item != .workspaces) continue;
         const n = h.idx;
         if (cfg.hover_effect) if (b.hover) |hv| if (hv.item == .workspaces and hv.idx == n)
-            cv.fillRoundRect(h.x * S, by * S, h.w * S, cfg.button * S, cfg.button_radius * S, c.hover);
+            cv.fillRect(h.x * S, by * S, h.w * S, cfg.button * S, c.hover);
         const cx = (h.x + h.w / 2) * S;
         const cy = (by + cfg.button / 2) * S;
         const occ = occupied & (@as(u32, 1) << @intCast(n)) != 0;
         if (n == b.ws) {
             const pw = (h.w - 10) * S;
             const ph = 7 * S;
-            cv.fillRoundRect(cx - pw / 2, cy - ph / 2, pw, ph, ph / 2, if (b.active) c.ws_active else c.ws_other);
+            cv.fillRect(cx - pw / 2, cy - ph / 2, pw, ph, if (b.active) c.ws_active else c.ws_other);
         } else {
             const other = wsElsewhere(b, n);
             const col = if (other) c.ws_other else if (occ) c.ws_occupied else c.ws_empty;
             const d: f32 = (if (occ or other) @as(f32, 7) else 5.5) * S;
-            cv.fillRoundRect(cx - d / 2, cy - d / 2, d, d, d / 2, col);
+            cv.fillRect(cx - d / 2, cy - d / 2, d, d, col);
         }
     }
 }
@@ -1422,7 +1412,7 @@ fn paintBattery(cv: *draw.Canvas, s: Slot, H: f32, S: f32) void {
     cv.icon(&draw.icon_battery, ox, oy, sc, st, col);
     // уровень: внутри корпуса 1..13.5 × 4.5..11.5 по сетке 16×16
     const fw = 10.0 * @as(f32, @floatFromInt(bat.percent)) / 100.0;
-    if (fw > 0.3) cv.fillRoundRect(ox + 2.25 * sc, oy + 5.75 * sc, fw * sc, 4.5 * sc, 0.8 * sc, col);
+    if (fw > 0.3) cv.fillRect(ox + 2.25 * sc, oy + 5.75 * sc, fw * sc, 4.5 * sc, col);
     if (bat.charging) cv.icon(&draw.icon_bolt, ox, oy, sc, st, c.background | 0xff000000);
     if (ttf.font == null) return;
     var tb: [8]u8 = undefined;
@@ -1613,7 +1603,7 @@ fn paintWall(i: u8, pic: *const img.Image) void {
     sys.ftruncate(fd, size) catch return;
     const mem = sys.mmap(size, fd) catch return;
     const px: [*]u32 = @ptrCast(@alignCast(mem));
-    const bg = wm_bg & 0xffffff;
+    const bg = theme.t.wallpaper & 0xffffff;
     img.render(pic, px[0 .. size / 4], pw, ph, if (cfg.wallpaper_mode == .fill) .fill else .fit, bg) catch @memset(px[0 .. size / 4], 0xff000000 | bg);
     // пиксели уже в общей памяти — своё отображение сразу убрать
     sys.munmap(mem, size);

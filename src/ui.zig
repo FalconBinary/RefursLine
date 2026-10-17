@@ -3,7 +3,7 @@
 
 //! Общий каркас меню RefursLine (лаунчер, Wi‑Fi, Bluetooth, обои, питание, календарь).
 //!
-//! Карточка по центру экрана над лёгким затемнением, указатель, клавиатура (XKB, повтор),
+//! Карточка по центру экрана (без затемнения вокруг), указатель, клавиатура (XKB, повтор),
 //! буфер обмена, поля ввода, кнопки, песочница. Тема — аргументом от бара (theme.decode).
 //! Каждое меню описывает только свои экраны: раскладку виджетов, отрисовку и реакции.
 //! Повторный запуск того же меню закрывает открытое.
@@ -168,7 +168,7 @@ const Surf = struct {
 };
 
 var card: Surf = .{}; // owner 0
-var back: Surf = .{}; // owner 1 — затемнение, ловит клики вокруг карточки
+var back: Surf = .{}; // owner 1 — невидимый слой, ловит клики вокруг карточки
 var back_buffer: u32 = 0;
 var back_viewport: u32 = 0;
 
@@ -529,7 +529,7 @@ fn setupCard() void {
 }
 
 fn setupBackdrop() void {
-    if (viewporter == 0) return; // без масштабирования буфера затемнения нет
+    if (viewporter == 0) return; // без масштабирования буфера слоя нет
     back.surface = create(.surface, 1);
     conn.req(compositor, p.wl_compositor, .create_surface, .{back.surface});
     back.layer = create(.layer_surface, 1);
@@ -545,28 +545,22 @@ fn setupBackdrop() void {
     conn.req(back.surface, p.wl_surface, .commit, .{});
 }
 
-/// Затемнение — один пиксель, растянутый на весь экран: почти ни памяти, ни GPU.
+/// Слой вокруг карточки — один пустой пиксель, растянутый на весь экран: ничего не рисует
+/// (без затемнения), только ловит клик мимо меню, чтобы его закрыть.
 fn paintBackdrop() void {
     if (!back.configured or back_viewport == 0) return;
-    const c = theme.t.menu_backdrop;
-    const a: u64 = c >> 24;
     if (back_buffer != 0) conn.req(back_buffer, p.wl_buffer, .destroy, .{});
     back_buffer = 0;
     if (spb != 0) {
         back_buffer = create(.buffer, 2);
-        const ch = struct {
-            fn f(v: u32, al: u64) u32 {
-                return @intCast(((@as(u64, v & 0xff) * al / 255) * 0x01010101));
-            }
-        }.f;
-        conn.req(spb, p.wp_single_pixel_buffer_manager_v1, .create_u32_rgba_buffer, .{ back_buffer, ch(c >> 16, a), ch(c >> 8, a), ch(c, a), @as(u32, @intCast(a * 0x01010101)) });
+        conn.req(spb, p.wp_single_pixel_buffer_manager_v1, .create_u32_rgba_buffer, .{ back_buffer, @as(u32, 0), @as(u32, 0), @as(u32, 0), @as(u32, 0) });
     } else {
         const fd = sys.memfd("menu-backdrop") catch return;
         defer sys.close(fd);
         sys.ftruncate(fd, 4) catch return;
         const m = sys.mmap(4, fd) catch return;
         const pix: *u32 = @ptrCast(@alignCast(m));
-        pix.* = draw.premul(c);
+        pix.* = 0;
         sys.munmap(m, 4);
         const pool = create(.pool, 2);
         conn.req(shm, p.wl_shm, .create_pool, .{ pool, wl.Fd{ .fd = fd }, @as(i32, 4) });
@@ -655,8 +649,8 @@ fn render() void {
         }
     }
     cv.clear(0);
-    rrect(&cv, 0, 0, W(), H(), cfg.menu_radius, theme.t.menu_background);
-    outline(&cv, 0.5, 0.5, W() - 1, H() - 1, cfg.menu_radius, theme.t.menu_border, 1);
+    rect(&cv, 0, 0, W(), H(), theme.t.menu_background);
+    outline(&cv, 0.5, 0.5, W() - 1, H() - 1, theme.t.menu_border, 1);
     app.paint(&cv);
     // отправить только изменённую полосу строк (в частичном кадре могла измениться только она)
     var y0: u32 = @intCast(@max(0, cv.top));
@@ -688,15 +682,13 @@ fn render() void {
     frames += 1;
 }
 
-/// Непрозрачный фон карточки (альфа ff в теме): компоновщик получает непрозрачную область —
-/// карточку без скруглённых углов — и не рисует под ней затемнение и окна.
+/// Карточка непрозрачна целиком: компоновщик получает непрозрачную область и не рисует под ней окна.
 fn syncOpaque() void {
-    const want = theme.solid(theme.t.menu_background);
-    if (want == card.solid and (!want or (card.solid_w == card.w and card.solid_h == card.h))) return;
-    card.solid = want;
+    if (card.solid and card.solid_w == card.w and card.solid_h == card.h) return;
+    card.solid = true;
     card.solid_w = card.w;
     card.solid_h = card.h;
-    conn.setOpaque(compositor, card.surface, want, card.w, card.h, cfg.menu_radius);
+    conn.setOpaque(compositor, card.surface, card.w, card.h);
 }
 
 // ================================================================= виджеты
@@ -1295,12 +1287,12 @@ fn fpx(size: f32) u16 {
     return @intFromFloat(@round(size * S));
 }
 
-pub fn rrect(cv: *draw.Canvas, x: f32, y: f32, w: f32, h: f32, r: f32, c: u32) void {
-    cv.fillRoundRect(px(x), px(y), px(w), px(h), px(r), c);
+pub fn rect(cv: *draw.Canvas, x: f32, y: f32, w: f32, h: f32, c: u32) void {
+    cv.fillRect(px(x), px(y), px(w), px(h), c);
 }
 
-pub fn outline(cv: *draw.Canvas, x: f32, y: f32, w: f32, h: f32, r: f32, c: u32, width: f32) void {
-    const b = [_]draw.Prim{.{ .box = .{ .x = px(x), .y = px(y), .w = px(w), .h = px(h), .r = px(r) } }};
+pub fn outline(cv: *draw.Canvas, x: f32, y: f32, w: f32, h: f32, c: u32, width: f32) void {
+    const b = [_]draw.Prim{.{ .box = .{ .x = px(x), .y = px(y), .w = px(w), .h = px(h), .r = 0 } }};
     cv.prims(&b, 0, 0, 1, px(width), c);
 }
 
@@ -1391,7 +1383,7 @@ pub fn header(cv: *draw.Canvas, title: []const u8, sub: []const u8, with_back: b
 
 /// Стрелка «назад» в заголовке (виджет добавляет само меню).
 pub fn paintBack(cv: *draw.Canvas, w: Widget) void {
-    if (isHover(w)) rrect(cv, w.x, w.y, w.w, w.h, 8, theme.t.menu_hover);
+    if (isHover(w)) rect(cv, w.x, w.y, w.w, w.h, theme.t.menu_hover);
     icon(cv, &ic_back, w.x + 7, w.y + 7, 16, 2, theme.t.menu_text);
 }
 
@@ -1399,10 +1391,11 @@ pub const BtnKind = enum { primary, secondary, danger };
 
 pub fn button(cv: *draw.Canvas, w: Widget, label: []const u8, kind: BtnKind) void {
     const t = &theme.t;
-    const bg = if (kind == .primary) t.menu_accent else t.menu_field;
-    rrect(cv, w.x, w.y, w.w, w.h, 10, bg);
-    if (isHover(w)) rrect(cv, w.x, w.y, w.w, w.h, 10, t.menu_hover);
-    if (isFocus(w)) outline(cv, w.x - 2, w.y - 2, w.w + 4, w.h + 4, 12, t.menu_accent, 1.5);
+    const bg = if (kind == .primary)
+        (if (isHover(w)) t.menu_accent_hover else t.menu_accent)
+    else if (isHover(w)) t.menu_hover else t.menu_field;
+    rect(cv, w.x, w.y, w.w, w.h, bg);
+    if (isFocus(w)) outline(cv, w.x - 2, w.y - 2, w.w + 4, w.h + 4, t.menu_accent, 1.5);
     const fg = switch (kind) {
         .primary => t.menu_accent_text,
         .secondary => t.menu_text,
@@ -1413,16 +1406,16 @@ pub fn button(cv: *draw.Canvas, w: Widget, label: []const u8, kind: BtnKind) voi
 
 pub fn toggle(cv: *draw.Canvas, w: Widget, on: bool) void {
     const t = &theme.t;
-    rrect(cv, w.x, w.y, w.w, w.h, w.h / 2, if (on) t.menu_accent else t.menu_field);
+    rect(cv, w.x, w.y, w.w, w.h, if (on) t.menu_accent else t.menu_field);
     const kx = if (on) w.x + w.w - w.h + 3 else w.x + 3;
-    rrect(cv, kx, w.y + 3, w.h - 6, w.h - 6, (w.h - 6) / 2, if (on) t.menu_accent_text else t.menu_muted);
+    rect(cv, kx, w.y + 3, w.h - 6, w.h - 6, if (on) t.menu_accent_text else t.menu_muted);
 }
 
 pub fn select(cv: *draw.Canvas, w: Widget, label: []const u8) void {
     const t = &theme.t;
-    rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_field);
-    if (isHover(w)) rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_hover);
-    if (isFocus(w)) outline(cv, w.x, w.y, w.w, w.h, 8, t.menu_accent, 1.5);
+    rect(cv, w.x, w.y, w.w, w.h, t.menu_field);
+    if (isHover(w)) rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
+    if (isFocus(w)) outline(cv, w.x, w.y, w.w, w.h, t.menu_accent, 1.5);
     _ = text(cv, label, w.x + 10, mid(w.y, w.h, 13), 13, t.menu_text, w.x + w.w - 26);
     icon(cv, &ic_chevron, w.x + w.w - 24, w.y + (w.h - 16) / 2, 16, 1.6, t.menu_muted);
 }
@@ -1432,14 +1425,14 @@ pub fn select(cv: *draw.Canvas, w: Widget, label: []const u8) void {
 pub fn field(cv: *draw.Canvas, w: Widget, f: *const Field, placeholder: []const u8, hidden: bool, right_pad: f32) void {
     const t = &theme.t;
     const foc = isFocus(w);
-    rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_field);
-    if (foc) outline(cv, w.x, w.y, w.w, w.h, 8, t.menu_accent, 1.5);
+    rect(cv, w.x, w.y, w.w, w.h, t.menu_field);
+    if (foc) outline(cv, w.x, w.y, w.w, w.h, t.menu_accent, 1.5);
     const size: f32 = 13;
     const x0 = w.x + 10;
     const avail = w.w - 20 - right_pad;
     if (f.len == 0) {
         if (placeholder.len > 0) _ = text(cv, placeholder, x0, mid(w.y, w.h, size), size, t.menu_muted, x0 + avail);
-        if (foc) rrect(cv, x0, w.y + 8, 1.5, w.h - 16, 0.5, t.menu_accent);
+        if (foc) rect(cv, x0, w.y + 8, 1.5, w.h - 16, t.menu_accent);
         return;
     }
     // что показывать: текст или точки
@@ -1471,7 +1464,7 @@ pub fn field(cv: *draw.Canvas, w: Widget, f: *const Field, placeholder: []const 
     _ = text(cv, s[start..], x0, mid(w.y, w.h, size), size, t.menu_text, x0 + avail);
     if (foc) {
         const cx = x0 + textW(s[start..caret_s], size);
-        rrect(cv, cx, w.y + 8, 1.5, w.h - 16, 0.5, t.menu_accent);
+        rect(cv, cx, w.y + 8, 1.5, w.h - 16, t.menu_accent);
     }
     if (hidden) sys.secureZero(&shown);
 }
@@ -1501,5 +1494,5 @@ pub fn scrollbar(cv: *draw.Canvas, l: *const List, top: f32, row_h: f32) void {
     const track = @as(f32, @floatFromInt(l.visible)) * row_h;
     const h = track * @as(f32, @floatFromInt(l.visible)) / @as(f32, @floatFromInt(l.n));
     const y = top + (track - h) * @as(f32, @floatFromInt(l.scroll)) / @as(f32, @floatFromInt(l.n - l.visible));
-    rrect(cv, W() - 6, y, 3, h, 1.5, theme.t.menu_border);
+    rect(cv, W() - 6, y, 3, h, theme.t.menu_border);
 }

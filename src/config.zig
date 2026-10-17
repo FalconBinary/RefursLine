@@ -3,7 +3,8 @@
 
 //! Настройки RefursLine. Конфиг вкомпилирован, как у RefursWM: поправил → `zig build` →
 //! перезапустил бар (Super+Shift+B). Ошибка в конфиге — ошибка сборки, при старте ничего не
-//! разбирается. Тёмная/светлая тема и акцентный цвет приходят от RefursWM (Super+Shift+T).
+//! разбирается. Цвета бара — только здесь, независимо от цветов RefursWM; от RefursWM приходит
+//! лишь выбор тёмной или светлой палитры (Super+Shift+T).
 
 const hex = @import("color.zig").hex;
 
@@ -35,12 +36,10 @@ pub const position: Position = .top;
 pub const height: u32 = 34;
 pub const margin_edge: i32 = 6; // отступ от края экрана
 pub const margin_side: i32 = 10; // отступы слева и справа
-pub const radius: f32 = 12; // скругление панели (0 — прямые углы)
 pub const border_width: f32 = 0; // рамка (0 — нет), цвет — border
 pub const padding: f32 = 6; // внутренний отступ по краям
 pub const spacing: f32 = 2; // промежуток между кнопками
 pub const button: f32 = 26; // размер кнопки (область клика и подсветки)
-pub const button_radius: f32 = 8;
 pub const icon: f32 = 16; // размер иконки
 pub const icon_stroke: f32 = 1.6; // толщина линий иконок
 pub const hover_effect = true; // подсветка кнопки под курсором
@@ -79,12 +78,13 @@ pub const battery_low: u8 = 15;
 pub const sandbox = true;
 
 // ---------------------------------------------------------------- цвета
-// "#RRGGBB" или "#RRGGBBAA" (AA — непрозрачность, ff — непрозрачный).
+// Только "#RRGGBB": все цвета непрозрачные, без скруглений, прозрачности и затемнений.
+// Подсветка (hover, menu_hover) — отдельный сплошной цвет, а не полупрозрачный слой.
 
 pub const Theme = struct {
     background: u32,
     border: u32,
-    hover: u32,
+    hover: u32, // кнопка под курсором
     icon: u32, // лаунчер, обои, текст раскладки и заголовка
     ws_active: u32,
     ws_occupied: u32,
@@ -103,21 +103,23 @@ pub const Theme = struct {
     power: u32,
     // меню
     menu_background: u32,
-    menu_backdrop: u32, // затемнение вокруг меню
     menu_text: u32,
     menu_muted: u32,
-    menu_accent: u32,
+    menu_accent: u32, // главная кнопка, выбранное, фокус
+    menu_accent_hover: u32, // главная кнопка под курсором
     menu_accent_text: u32, // текст на акцентной кнопке
     menu_field: u32, // поля ввода и второстепенные кнопки
     menu_border: u32,
-    menu_hover: u32,
+    menu_hover: u32, // строка или кнопка под курсором
     menu_error: u32,
+    // обои
+    wallpaper: u32, // поля вокруг картинки в режиме .fit и фон, пока обоев нет
 };
 
 pub const dark = Theme{
-    .background = hex("#1e1e2eeb"),
+    .background = hex("#1e1e2e"),
     .border = hex("#45475a"),
-    .hover = hex("#ffffff1f"),
+    .hover = hex("#313244"),
     .icon = hex("#cdd6f4"),
     .ws_active = hex("#89b4fa"),
     .ws_occupied = hex("#cdd6f4"),
@@ -134,22 +136,23 @@ pub const dark = Theme{
     .battery = hex("#cdd6f4"),
     .charging = hex("#a6e3a1"),
     .power = hex("#f38ba8"),
-    .menu_background = hex("#1e1e2ef2"),
-    .menu_backdrop = hex("#00000059"),
+    .menu_background = hex("#1e1e2e"),
     .menu_text = hex("#cdd6f4"),
     .menu_muted = hex("#7f849c"),
     .menu_accent = hex("#89b4fa"),
+    .menu_accent_hover = hex("#b4befe"),
     .menu_accent_text = hex("#1e1e2e"),
     .menu_field = hex("#313244"),
     .menu_border = hex("#45475a"),
-    .menu_hover = hex("#ffffff14"),
+    .menu_hover = hex("#45475a"),
     .menu_error = hex("#f38ba8"),
+    .wallpaper = hex("#1e1e2e"),
 };
 
 pub const light = Theme{
-    .background = hex("#eff1f5eb"),
+    .background = hex("#eff1f5"),
     .border = hex("#bcc0cc"),
-    .hover = hex("#0000001a"),
+    .hover = hex("#ccd0da"),
     .icon = hex("#4c4f69"),
     .ws_active = hex("#1e66f5"),
     .ws_occupied = hex("#4c4f69"),
@@ -166,27 +169,23 @@ pub const light = Theme{
     .battery = hex("#4c4f69"),
     .charging = hex("#40a02b"),
     .power = hex("#d20f39"),
-    .menu_background = hex("#eff1f5f2"),
-    .menu_backdrop = hex("#00000033"),
+    .menu_background = hex("#eff1f5"),
     .menu_text = hex("#4c4f69"),
     .menu_muted = hex("#8c8fa1"),
     .menu_accent = hex("#1e66f5"),
+    .menu_accent_hover = hex("#7287fd"),
     .menu_accent_text = hex("#eff1f5"),
     .menu_field = hex("#ccd0da"),
     .menu_border = hex("#bcc0cc"),
-    .menu_hover = hex("#0000000f"),
+    .menu_hover = hex("#bcc0cc"),
     .menu_error = hex("#d20f39"),
+    .wallpaper = hex("#eff1f5"),
 };
-
-/// Акцент (активный стол, подключённый BT, кнопки меню) — цвет активной рамки окна из RefursWM:
-/// бар и рамки всегда в одной гамме. false — только цвета выше.
-pub const follow_wm_accent = true;
 
 // ---------------------------------------------------------------- меню
 
 pub const menu_width: u32 = 400; // Wi‑Fi и Bluetooth
 pub const menu_height: u32 = 500;
-pub const menu_radius: f32 = 16;
 
 /// Питание: спрашивать подтверждение для выхода, перезагрузки и выключения.
 pub const power_confirm = true;
@@ -195,7 +194,7 @@ pub const lock_before_suspend = true;
 
 /// Каталог обоев (~ — домашний). JPEG и PNG.
 pub const wallpaper_dir = "~/Pictures/wallpapers";
-/// .fill — заполнить экран с обрезкой краёв, .fit — целиком, с полями цвета фона RefursWM.
+/// .fill — заполнить экран с обрезкой краёв, .fit — целиком, с полями цвета wallpaper из темы.
 pub const wallpaper_mode: enum { fill, fit } = .fill;
 
 /// Без systemd-logind (Void с runit) перезагрузка и выключение — этими командами, без shell;

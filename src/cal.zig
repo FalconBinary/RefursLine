@@ -108,7 +108,7 @@ fn paint(cv: *draw.Canvas) void {
     var b: [64]u8 = undefined;
     const date = std.fmt.bufPrint(&b, "{s} {d}, {d}", .{ months[today.month - 1], today.day, today.year }) catch "";
     _ = ui.text(cv, date, PAD, 56, 20, t.menu_text, W - PAD);
-    ui.rrect(cv, PAD, 72, W - 2 * PAD, 1, 0.5, t.menu_border);
+    ui.rect(cv, PAD, 72, W - 2 * PAD, 1, t.menu_border);
 
     // название месяца и стрелки
     var mb: [48]u8 = undefined;
@@ -117,11 +117,11 @@ fn paint(cv: *draw.Canvas) void {
         const hov = ui.isHover(w);
         switch (@as(Wid, @enumFromInt(w.id))) {
             .title => {
-                if (hov and (year != today.year or month != today.month)) ui.rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_hover);
+                if (hov and (year != today.year or month != today.month)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 _ = ui.text(cv, title, w.x + 6, ui.mid(w.y, w.h, 15), 15, t.menu_text, w.x + w.w);
             },
             .prev, .next => {
-                if (hov) ui.rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_hover);
+                if (hov) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 const ic: []const draw.Prim = if (w.id == @intFromEnum(Wid.prev)) &ui.ic_back else &ui.ic_fwd;
                 ui.icon(cv, ic, w.x + 6, w.y + 6, 16, 1.8, t.menu_text);
             },
@@ -149,7 +149,7 @@ fn paint(cv: *draw.Canvas) void {
         const num = std.fmt.bufPrint(&nb, "{d}", .{dt.day}) catch "";
         const in_month = dt.month == month;
         if (day == td) {
-            ui.rrect(cv, cx - 15, cy - 15, 30, 30, 15, t.menu_accent);
+            ui.rect(cv, cx - 15, cy - 15, 30, 30, t.menu_accent);
             ui.centered(cv, num, cx, cy + 5, 13.5, t.menu_accent_text);
         } else {
             const weekend = cell % 7 >= 5;

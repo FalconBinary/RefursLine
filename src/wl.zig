@@ -246,21 +246,13 @@ pub const Conn = struct {
         return .{ .obj = obj, .op = @truncate(hdr), .args = .{ .d = m[8..size] } };
     }
 
-    /// Непрозрачная область поверхности (применяется со следующим commit): solid — прямоугольник w×h
-    /// без углов, скруглённых радиусом r (та часть скруглённой панели или карточки, что покрыта
-    /// полностью), иначе никакой. Под непрозрачной областью компоновщик ничего не рисует и не смешивает.
+    /// Непрозрачная область поверхности (применяется со следующим commit): весь прямоугольник w×h.
+    /// Под непрозрачной областью компоновщик ничего не рисует и не смешивает.
     /// Объект области событий не получает, поэтому записи в таблице объектов программы ему не нужно.
-    pub noinline fn setOpaque(self: *Conn, compositor: u32, surface: u32, solid: bool, w: u32, h: u32, r: f32) void {
-        if (!solid) return self.req(surface, p.wl_surface, .set_opaque_region, .{@as(u32, 0)});
+    pub noinline fn setOpaque(self: *Conn, compositor: u32, surface: u32, w: u32, h: u32) void {
         const region = self.newId();
         self.req(compositor, p.wl_compositor, .create_region, .{region});
-        const k: u32 = @min(@as(u32, @intFromFloat(@ceil(@max(r, 0)))), @min(w, h) / 2);
-        const iw: i32 = @intCast(w);
-        const ih: i32 = @intCast(h);
-        const ik: i32 = @intCast(k);
-        // середина во всю высоту и, между углами, полоса во всю ширину
-        self.req(region, p.wl_region, .add, .{ ik, @as(i32, 0), iw - 2 * ik, ih });
-        if (k > 0 and ih > 2 * ik) self.req(region, p.wl_region, .add, .{ @as(i32, 0), ik, iw, ih - 2 * ik });
+        self.req(region, p.wl_region, .add, .{ @as(i32, 0), @as(i32, 0), @as(i32, @intCast(w)), @as(i32, @intCast(h)) });
         self.req(surface, p.wl_surface, .set_opaque_region, .{region});
         self.req(region, p.wl_region, .destroy, .{}); // у поверхности своя копия
     }

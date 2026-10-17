@@ -543,24 +543,24 @@ fn paint(cv: *draw.Canvas) void {
             .tile => {
                 const i = w.idx;
                 if (states[i] == .ok) {
-                    cv.image(thumbs[i], tsz[0], tsz[1], w.x * S, w.y * S, w.w * S, w.h * S, 10 * S);
+                    cv.image(thumbs[i], tsz[0], tsz[1], w.x * S, w.y * S, w.w * S, w.h * S);
                 } else {
-                    ui.rrect(cv, w.x, w.y, w.w, w.h, 10, t.menu_field);
+                    ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_field);
                     if (states[i] == .failed) ui.centered(cv, "can't open", w.x + w.w / 2, ui.mid(w.y, w.h, 11), 11, t.menu_muted);
                 }
                 const is_cur = cur != null and cur.? == i;
                 const waiting = (pending != null and pending.? == i) or (queued != null and queued.? == i);
                 const lit = (ui.kbd_nav and sel == i) or (!ui.kbd_nav and ui.isHover(w));
                 if (is_cur) {
-                    ui.outline(cv, w.x - 1, w.y - 1, w.w + 2, w.h + 2, 11, t.menu_accent, 3);
-                    ui.rrect(cv, w.x + w.w - 30, w.y + 8, 22, 22, 11, t.menu_accent);
+                    ui.outline(cv, w.x - 1, w.y - 1, w.w + 2, w.h + 2, t.menu_accent, 3);
+                    ui.rect(cv, w.x + w.w - 30, w.y + 8, 22, 22, t.menu_accent);
                     ui.icon(cv, &ui.ic_check, w.x + w.w - 27, w.y + 11, 16, 2, t.menu_accent_text);
                 } else if (lit) {
-                    ui.outline(cv, w.x - 1, w.y - 1, w.w + 2, w.h + 2, 11, t.menu_text, 2);
+                    ui.outline(cv, w.x - 1, w.y - 1, w.w + 2, w.h + 2, t.menu_text, 2);
                 }
-                if (waiting) { // применяется — затемнить и подписать
-                    ui.rrect(cv, w.x, w.y, w.w, w.h, 10, 0x99000000);
-                    ui.centered(cv, "applying…", w.x + w.w / 2, ui.mid(w.y, w.h, 12), 12, 0xffffffff);
+                if (waiting) { // применяется — плашка с подписью поверх миниатюры
+                    ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_field);
+                    ui.centered(cv, "applying…", w.x + w.w / 2, ui.mid(w.y, w.h, 12), 12, t.menu_text);
                 }
             },
             .none => {},
@@ -581,7 +581,7 @@ fn paint(cv: *draw.Canvas) void {
         const track = ROWS * TILE_H + (ROWS - 1) * GAP;
         const hgt = track * ROWS / @as(f32, @floatFromInt(rows));
         const y = GRID_Y + (track - hgt) * @as(f32, @floatFromInt(scroll)) / @as(f32, @floatFromInt(rows - ROWS));
-        ui.rrect(cv, W - 8, y, 3, hgt, 1.5, t.menu_border);
+        ui.rect(cv, W - 8, y, 3, hgt, t.menu_border);
     }
 }
 

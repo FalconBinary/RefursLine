@@ -1301,8 +1301,8 @@ fn paint(cv: *draw.Canvas) void {
             .tab => {
                 const on = @intFromEnum(mode) == w.idx;
                 if (on) {
-                    ui.rrect(cv, w.x, w.y, w.w, w.h, w.h / 2, t.menu_field);
-                } else if (ui.isHover(w)) ui.rrect(cv, w.x, w.y, w.w, w.h, w.h / 2, t.menu_hover);
+                    ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_field);
+                } else if (ui.isHover(w)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 ui.centered(cv, tab_labels[w.idx], w.x + w.w / 2, ui.mid(w.y, w.h, 13), 13, if (on) t.menu_text else t.menu_muted);
             },
             .field => ui.field(cv, w, &query, if (mode == .apps) "Search apps" else "Command or program", false, 0),
@@ -1330,7 +1330,7 @@ fn paint(cv: *draw.Canvas) void {
 }
 
 fn tile(cv: *draw.Canvas, x: f32, y: f32) void {
-    ui.rrect(cv, x, y, ICON, ICON, 9, theme.t.menu_field);
+    ui.rect(cv, x, y, ICON, ICON, theme.t.menu_field);
 }
 
 fn paintAppIcon(cv: *draw.Canvas, a: *App, x: f32, y: f32) void {
@@ -1350,7 +1350,7 @@ fn paintAppIcon(cv: *draw.Canvas, a: *App, x: f32, y: f32) void {
 
 fn paintRow(cv: *draw.Canvas, w: ui.Widget) void {
     const t = &theme.t;
-    if (list.lit(w)) ui.rrect(cv, w.x, w.y, w.w, w.h, 10, t.menu_hover);
+    if (list.lit(w)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
     const h = hits[w.idx];
     const ix = w.x + 8;
     const iy = w.y + (w.h - ICON) / 2;

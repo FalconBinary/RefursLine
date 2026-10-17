@@ -469,7 +469,7 @@ fn signal(cv: *draw.Canvas, x: f32, y: f32, strength: u8, on: u32, off: u32) voi
     while (i < 4) : (i += 1) {
         const fi: f32 = @floatFromInt(i);
         const h = 4 + fi * 3.3;
-        ui.rrect(cv, x + fi * 4.5, y + 14 - h, 3, h, 1.2, if (i < lvl) on else off);
+        ui.rect(cv, x + fi * 4.5, y + 14 - h, 3, h, if (i < lvl) on else off);
     }
 }
 
@@ -550,7 +550,7 @@ fn paintWidgets(cv: *draw.Canvas) void {
         switch (wid(w)) {
             .row => {
                 const n = &nets[w.idx];
-                if (list.lit(w)) ui.rrect(cv, w.x, w.y, w.w, w.h, 10, t.menu_hover);
+                if (list.lit(w)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 signal(cv, w.x + 12, w.y + (w.h - 14) / 2, n.strength, if (n.active) t.menu_accent else t.menu_text, t.menu_border);
                 const name_c = if (n.active) t.menu_accent else t.menu_text;
                 var right = w.x + w.w - 12;
@@ -572,7 +572,7 @@ fn paintWidgets(cv: *draw.Canvas) void {
                 _ = ui.text(cv, n.ssid(), w.x + 38, ui.mid(w.y, w.h, 14), 14, name_c, right - 6);
             },
             .more => {
-                if (hov) ui.rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_hover);
+                if (hov) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 ui.icon(cv, &ui.ic_more, w.x + 6, w.y + 6, 16, 1, t.menu_muted);
             },
             .toggle => ui.toggle(cv, w, iwd.wifi_enabled),

@@ -816,7 +816,7 @@ fn paintWidgets(cv: *draw.Canvas) void {
         switch (wid(w)) {
             .row => {
                 const d = devAt(w.idx);
-                if (list.lit(w)) ui.rrect(cv, w.x, w.y, w.w, w.h, 10, t.menu_hover);
+                if (list.lit(w)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 const c = if (d.connected) t.menu_accent else t.menu_text;
                 ui.icon(cv, kindIcon(d.kind), w.x + 12, w.y + (w.h - 20) / 2, 20, 1.5, c);
                 const right = w.x + w.w - (if (view == .list) @as(f32, 42) else 12);
@@ -825,7 +825,7 @@ fn paintWidgets(cv: *draw.Canvas) void {
                 _ = ui.text(cv, statusOf(d, &b), w.x + 44, w.y + 37, 11.5, t.menu_muted, right);
             },
             .more => {
-                if (ui.isHover(w)) ui.rrect(cv, w.x, w.y, w.w, w.h, 8, t.menu_hover);
+                if (ui.isHover(w)) ui.rect(cv, w.x, w.y, w.w, w.h, t.menu_hover);
                 ui.icon(cv, &ui.ic_more, w.x + 6, w.y + 6, 16, 1, t.menu_muted);
             },
             .toggle => ui.toggle(cv, w, ok and bz.powered),

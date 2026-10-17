@@ -33,7 +33,7 @@ const modes = std.enums.EnumArray(Menu, struct { [*:0]const u8, ?[*:0]const u8 }
     .bt_toggle = .{ "bt", "toggle" },
 });
 
-const MSG = 2 + 9;
+const MSG = 2 + 1;
 var sock: i32 = -1;
 
 /// self_fd — O_PATH на собственный исполняемый файл (sys.openSelf).
@@ -78,12 +78,12 @@ fn closeFrom(fd: usize) void {
 
 // ---------------------------------------------------------------- сторона бара
 
-/// Открыть меню. theme — 9 символов (theme.encode); channel — конец пары для меню или -1.
+/// Открыть меню. theme — "d" или "l" (theme.encode); channel — конец пары для меню или -1.
 pub fn open(m: Menu, theme_arg: []const u8, channel: i32) void {
     var msg: [MSG]u8 = @splat(0);
     msg[0] = 'M';
     msg[1] = @intFromEnum(m);
-    @memcpy(msg[2..][0..@min(9, theme_arg.len)], theme_arg[0..@min(9, theme_arg.len)]);
+    if (theme_arg.len > 0) msg[2] = theme_arg[0];
     const fds: []const i32 = if (channel >= 0) &.{channel} else &.{};
     _ = sys.sendmsgFds(sock, &msg, fds) catch {};
 }
@@ -91,9 +91,7 @@ pub fn open(m: Menu, theme_arg: []const u8, channel: i32) void {
 // ---------------------------------------------------------------- сторона broker
 
 fn validTheme(t: []const u8) bool {
-    if (t.len != 9 or (t[0] != 'd' and t[0] != 'l')) return false;
-    for (t[1..]) |c| if (!std.ascii.isHex(c)) return false;
-    return true;
+    return t.len == 1 and (t[0] == 'd' or t[0] == 'l');
 }
 
 fn serve(fd: i32, self_fd: i32) noreturn {
@@ -106,8 +104,8 @@ fn serve(fd: i32, self_fd: i32) noreturn {
         if (n != MSG or buf[0] != 'M' or buf[1] >= @typeInfo(Menu).@"enum".field_names.len) continue;
         const theme_arg = buf[2..MSG];
         if (!validTheme(theme_arg)) continue;
-        var tz: [10:0]u8 = @splat(0);
-        @memcpy(tz[0..9], theme_arg);
+        var tz: [1:0]u8 = @splat(0);
+        tz[0] = theme_arg[0];
         const mode = modes.get(@enumFromInt(buf[1]));
         const av = [_:null]?[*:0]const u8{ "refursline", mode[0], &tz, mode[1] };
         spawn(self_fd, &av, ch);
@@ -134,8 +132,9 @@ fn spawn(self_fd: i32, av: [*:null]const ?[*:0]const u8, ch: i32) void {
 }
 
 test "тема для меню проверяется строго" {
-    try std.testing.expect(validTheme("d89b4faff"));
-    try std.testing.expect(!validTheme("x89b4faff"));
-    try std.testing.expect(!validTheme("d89b4fa\x00f"));
-    try std.testing.expect(!validTheme("d89b4fa"));
+    try std.testing.expect(validTheme("d"));
+    try std.testing.expect(validTheme("l"));
+    try std.testing.expect(!validTheme("x"));
+    try std.testing.expect(!validTheme("\x00"));
+    try std.testing.expect(!validTheme("dd"));
 }

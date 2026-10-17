@@ -434,9 +434,9 @@ fn paint(cv: *draw.Canvas) void {
                 const a = acts[w.idx];
                 const cx = w.x + w.w / 2;
                 const r = CIRCLE / 2;
-                ui.rrect(cv, cx - r, w.y, CIRCLE, CIRCLE, r, t.menu_field);
-                if (ui.isHover(w)) ui.rrect(cv, cx - r, w.y, CIRCLE, CIRCLE, r, t.menu_hover);
-                if (ui.isFocus(w)) ui.outline(cv, cx - r - 2, w.y - 2, CIRCLE + 4, CIRCLE + 4, r + 2, t.menu_accent, 1.5);
+                ui.rect(cv, cx - r, w.y, CIRCLE, CIRCLE, t.menu_field);
+                if (ui.isHover(w)) ui.rect(cv, cx - r, w.y, CIRCLE, CIRCLE, t.menu_hover);
+                if (ui.isFocus(w)) ui.outline(cv, cx - r - 2, w.y - 2, CIRCLE + 4, CIRCLE + 4, t.menu_accent, 1.5);
                 const c = if (a == .poweroff) t.menu_error else t.menu_text;
                 ui.icon(cv, iconOf(a), cx - 12, w.y + r - 12, 24, 1.8, c);
                 ui.centered(cv, label(a), cx, w.y + CIRCLE + 22, 12, if (ui.isHover(w) or ui.isFocus(w)) t.menu_text else t.menu_muted);

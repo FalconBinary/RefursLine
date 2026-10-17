@@ -1,14 +1,14 @@
 // Copyright (c) 2026 Denys (FalconBinary)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Программная отрисовка в ARGB8888 (premultiplied): заливки, скруглённые прямоугольники и
+//! Программная отрисовка в ARGB8888 (premultiplied): заливки, прямоугольники и
 //! векторные примитивы со сглаживанием через функции расстояния (SDF). Цифры и иконки — свои
 //! векторные фигуры, поэтому масштабируются без потерь.
 //!
 //! Скорость:
 //! - смешивание целочисленное и векторное (SIMD): 8 пикселей за шаг, все 4 канала сразу, точное
 //!   деление на 255 с округлением — результат бит в бит как у скалярного пути (тест внизу);
-//! - у скруглённых прямоугольников функция расстояния считается только у краёв, середина строки
+//! - у прямоугольников функция расстояния считается только у краёв, середина строки
 //!   заливается одним проходом;
 //! - маски покрытия иконок и глифов кешируются: повторный кадр — только смешивание с цветом;
 //! - Canvas можно ограничить прямоугольником (top/bot/left/right): бар перерисовывает только
@@ -114,8 +114,8 @@ pub const Canvas = struct {
     }
 
     /// RGB-изображение (3 байта на пиксель, sw×sh) в прямоугольник устройства (x, y, w, h):
-    /// при уменьшении усредняется, углы скругляются радиусом r.
-    pub fn image(self: *Canvas, rgb: []const u8, sw: u32, sh: u32, x: f32, y: f32, w: f32, h: f32, r: f32) void {
+    /// при уменьшении усредняется.
+    pub fn image(self: *Canvas, rgb: []const u8, sw: u32, sh: u32, x: f32, y: f32, w: f32, h: f32) void {
         if (w < 1 or h < 1 or sw == 0 or sh == 0 or rgb.len < @as(usize, sw) * sh * 3) return;
         const xc = self.colRange(@intFromFloat(@floor(x)), @intFromFloat(@ceil(x + w)));
         const x0 = xc[0];
@@ -126,7 +126,7 @@ pub const Canvas = struct {
         if (x0 >= x1 or y0 >= y1) return;
         const fx: f32 = @as(f32, @floatFromInt(sw)) / w;
         const fy: f32 = @as(f32, @floatFromInt(sh)) / h;
-        const b = Box{ .cx = x + w / 2, .cy = y + h / 2, .hw = w / 2, .hh = h / 2, .r = @min(r, @min(w, h) / 2) };
+        const b = Box{ .cx = x + w / 2, .cy = y + h / 2, .hw = w / 2, .hh = h / 2, .r = 0 };
         if (fx == 1 and fy == 1 and x == @floor(x) and y == @floor(y)) return self.image1(rgb, sw, b, x0, y0, x1, y1, x, y);
         // исходные столбцы для каждого столбца результата — один раз на изображение
         var cols: [4096][2]u32 = undefined;
@@ -172,7 +172,7 @@ pub const Canvas = struct {
     }
 
     /// Изображение уже в размер экрана (миниатюры под масштаб): пиксель в пиксель,
-    /// середина строки простым копированием, только скруглённые края через функцию расстояния.
+    /// середина строки простым копированием, только дробные края через функцию расстояния.
     fn image1(self: *Canvas, rgb: []const u8, sw: u32, b: Box, x0: i32, y0: i32, x1: i32, y1: i32, x: f32, y: f32) void {
         const ix: i32 = @intFromFloat(x);
         const iy: i32 = @intFromFloat(y);
@@ -230,9 +230,9 @@ pub const Canvas = struct {
         }
     }
 
-    pub fn fillRoundRect(self: *Canvas, x: f32, y: f32, w: f32, h: f32, r: f32, color: u32) void {
+    pub fn fillRect(self: *Canvas, x: f32, y: f32, w: f32, h: f32, color: u32) void {
         if (!(w > 0 and h > 0)) return;
-        const b = Box{ .cx = x + w / 2, .cy = y + h / 2, .hw = w / 2, .hh = h / 2, .r = @max(0, @min(r, @min(w, h) / 2)) };
+        const b = Box{ .cx = x + w / 2, .cy = y + h / 2, .hw = w / 2, .hh = h / 2, .r = 0 };
         const xc = self.colRange(@intFromFloat(@floor(x - 1)), @intFromFloat(@ceil(x + w + 1)));
         const x0 = xc[0];
         const x1 = xc[1];
@@ -937,7 +937,7 @@ test "отсечение: за пределами прямоугольника �
     var px: [64 * 16]u32 = @splat(0);
     var cv = Canvas{ .px = &px, .w = 64, .h = 16 };
     cv.clip(10, 2, 30, 12);
-    cv.fillRoundRect(0, 0, 64, 16, 6, 0xff336699);
+    cv.fillRect(0, 0, 64, 16, 0xff336699);
     cv.icon(&icon_power, 20, 0, 1, 1.5, 0xffffffff);
     for (0..16) |y| for (0..64) |x| {
         const inside = x >= 10 and x < 30 and y >= 2 and y < 12;
